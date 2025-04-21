@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Panel de Mozo</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .mesa {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px;
+      width: 300px;
+      display: inline-block;
+      vertical-align: top;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .mesa h3 {
+      margin-top: 0;
+    }
+    .mesa p {
+      margin: 5px 0;
+    }
+    .btn-marcar-entregado {
+      background-color: #FF9800;
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    .btn-marcar-entregado:hover {
+      background-color: #FF5722;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h2>Panel de Mozo</h2>
+    <div id="mesas-container"></div>
+    <button onclick="window.location.href = 'login_mozo.html'">Cerrar sesión</button>
+  </main>
+
+  <script>
+    // Cargar órdenes desde el endpoint de ordenes (No mesas, ya que las ordenes están agrupadas en la API)
+    async function cargarOrdenes() {
+      try {
+        const res = await fetch("/api/ordenes");
+        const ordenes = await res.json();
+
+        return ordenes.filter(orden => orden.estado !== "entregado");
+      } catch (error) {
+        console.error("Error al cargar órdenes:", error);
+        return [];
+      }
+    }
+
+    // Agrupar órdenes por mesa
+    function agruparPorMesa(ordenes) {
+      const mesas = {};
+      ordenes.forEach(o => {
+        if (!mesas[o.mesa]) mesas[o.mesa] = [];
+        mesas[o.mesa].push(o);
+      });
+      return mesas;
+    }
+
+    // Mostrar mesas con pedidos
+    async function mostrarMesas() {
+      const ordenes = await cargarOrdenes();
+      const mesasAgrupadas = agruparPorMesa(ordenes);
+      const contenedor = document.getElementById("mesas-container");
+      contenedor.innerHTML = "";
+
+      for (const [mesa, pedidos] of Object.entries(mesasAgrupadas)) {
+        const divMesa = document.createElement("div");
+        divMesa.className = "mesa";
+
+        const h3 = document.createElement("h3");
+        h3.textContent = `Mesa: ${mesa}`;
+        divMesa.appendChild(h3);
+
+        pedidos.forEach(orden => {
+          const clienteInfo = document.createElement("p");
+          clienteInfo.textContent = `Cliente: ${orden.cliente} - Total: S/ ${orden.total}`;
+          divMesa.appendChild(clienteInfo);
+
+          orden.productos.forEach(prod => {
+            const p = document.createElement("p");
+            p.textContent = `${prod.nombre} x${prod.cantidad} - Pago: ${orden.metodoPago}`;
+            divMesa.appendChild(p);
+          });
+
+          const btn = document.createElement("button");
+          btn.className = "btn-marcar-entregado";
+          btn.textContent = "Marcar como entregado";
+          btn.onclick = () => marcarComoEntregado(orden.id);
+          divMesa.appendChild(btn);
+        });
+
+        contenedor.appendChild(divMesa);
+      }
+    }
+
+    // Marcar una orden como entregada
+    async function marcarComoEntregado(idOrden) {
+      try {
+        await fetch(`/api/ordenes/${idOrden}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ estado: "entregado" })
+        });
+        mostrarMesas();
+      } catch (error) {
+        console.error("Error al actualizar estado:", error);
+      }
+    }
+
+    // Actualizar cada 10 segundos
+    setInterval(mostrarMesas, 10000);
+    mostrarMesas();
+  </script>
+</body>
+</html>
